@@ -2,75 +2,91 @@ const express = require("express");
 const router = express.Router();
 const db = require("../lib/db");
 
-// Signup route
 router.post("/signup", async (req, res) => {
     try {
-        const { name, email, password } = req.body;
-        
-        // Check if user exists
-        const { data: existingUser } = await db
-            .from("users")
-            .select("*")
-            .eq("email", email)
-            .single();
-        
-        if (existingUser) {
-            return res.status(400).json({ error: "User already exists" });
-        }
-        
-        // Create new user
-        const { data, error } = await db
-            .from("users")
-            .insert([{ name, email, password }])
-            .select();
-        
-        if (error) {
-            return res.status(400).json({ error: error.message });
-        }
-        
-        res.status(201).json({ 
-            message: "User created successfully", 
-            user: data[0] 
+        const { name, username, email, password } = req.body;
+
+        const { data, error: authError } = await db.auth.signUp({
+            email,
+            password
         });
+
+        if (authError) {
+            return res.status(400).json({ error: authError.message });
+        }
+
+
+     
+
+        const { error: tableError } = await db.from("talkio")
+            .insert({
+                id: data.user.id,
+                name,
+                username: username.toLowerCase().trim(),
+                email,
+                status: "offline"
+            });
+
+        if (tableError) {
+            return res.status(400).json({ error: tableError.message });
+        }
+
+        return res.status(201).json({ 
+            message: "Account created successfully" 
+        });
+
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        return res.status(500).json({
+            error: error.message
+        });
     }
 });
 
-// Login route
 router.post("/login", async (req, res) => {
     try {
         const { email, password } = req.body;
-        
-        // Find user
-        const { data, error } = await db
-            .from("users")
-            .select("*")
-            .eq("email", email)
-            .single();
-        
-        if (error || !data) {
-            return res.status(400).json({ error: "Invalid email or password" });
-        }
-        
-        // Check password (plain text - not secure, but for now)
-        if (data.password !== password) {
-            return res.status(400).json({ error: "Invalid email or password" });
-        }
-        
-        // Create session (simple)
-        const session = {
-            user_id: data.id,
-            created_at: new Date()
-        };
-        
-        res.status(200).json({ 
-            message: "Login successful", 
-            user: { id: data.id, name: data.name, email: data.email },
-            session: session
+
+        const { data: authData, error } = await db.auth.signInWithPassword({
+            email,
+            password
         });
+
+        if (error) {
+            if (error.message === "Email not confirmed") {
+                return res.status(400).json({ error: "Check your email for Confirmation" });
+            }
+            return res.status(400).json({ error: error.message });
+        }
+
+        const { data: tableData, error: profileError } = await db.from("talkio")
+            .select("*")
+            .eq("id", authData.user.id)
+            .single();
+
+        if (profileError) {
+            return res.status(400).json({ error: "Profile record not found." });
+        }
+
+        await db.from("talkio")
+            .update({ status: "online" })
+            .eq("id", authData.user.id);
+
+        return res.json({
+            message: "Login Successful",
+            user: {
+                id: tableData.id,
+                email: tableData.email,
+                name: tableData.name,
+                username: tableData.username,
+                status: "online"
+            },
+            session: authData.session
+        });
+
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        return res.status(500).json({
+            error: error.message
+        });
     }
 });
 
