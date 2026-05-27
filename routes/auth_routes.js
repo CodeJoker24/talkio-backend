@@ -126,10 +126,10 @@ router.get("/users/:currentUserId", async (req, res) => {
             return res.status(400).json({ error: "Current User ID is required." });
         }
 
-        // Fetch id, name, username, and online status from the table
+       
         const { data: users, error } = await db.from("talkio")
             .select("id, name, username, status")
-            .neq("id", currentUserId); // "Not Equal" operator removes yourself from the list
+            .neq("id", currentUserId); 
 
         if (error) {
             return res.status(400).json({ error: error.message });
