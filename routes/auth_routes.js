@@ -118,5 +118,29 @@ router.post("/logout", async (req, res) => {
 
 
 
+router.get("/users/:currentUserId", async (req, res) => {
+    try {
+        const { currentUserId } = req.params;
+
+        if (!currentUserId) {
+            return res.status(400).json({ error: "Current User ID is required." });
+        }
+
+        // Fetch id, name, username, and online status from the table
+        const { data: users, error } = await db.from("talkio")
+            .select("id, name, username, status")
+            .neq("id", currentUserId); // "Not Equal" operator removes yourself from the list
+
+        if (error) {
+            return res.status(400).json({ error: error.message });
+        }
+
+        return res.json(users);
+    } catch (error) {
+        return res.status(500).json({ error: error.message });
+    }
+});
+
+
 
 module.exports = router;
