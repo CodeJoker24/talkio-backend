@@ -90,4 +90,33 @@ router.post("/login", async (req, res) => {
     }
 });
 
+
+
+
+
+
+router.post("/logout", async (req, res) => {
+    try {
+        const { userId } = req.body;
+
+        if (!userId) {
+            return res.status(400).json({ error: "User ID is required to execute session cleanups." });
+        }
+        const { error } = await db.from("talkio")
+            .update({ status: "offline" })
+            .eq("id", userId);
+
+        if (error) {
+            return res.status(400).json({ error: error.message });
+        }
+
+        return res.json({ message: "Presence states successfully synchronized to offline status." });
+    } catch (error) {
+        return res.status(500).json({ error: error.message });
+    }
+});
+
+
+
+
 module.exports = router;
