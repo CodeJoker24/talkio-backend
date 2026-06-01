@@ -122,7 +122,7 @@ router.post("/add-buddy", async (req, res) => {
 
   try {
    
-    const { data: buddy, error: findError } = await supabase
+    const { data: buddy, error: findError } = await db
       .from("talkio")
       .select("id")
       .eq("username", buddyUsername)
@@ -137,7 +137,7 @@ router.post("/add-buddy", async (req, res) => {
     }
 
     
-    const { error: insertError } = await supabase
+    const { error: insertError } = await db
       .from("contacts")
       .insert([{ user_id: currentUserId, buddy_id: buddy.id }]);
 
