@@ -117,4 +117,76 @@ router.get("/users/:currentUserId", async (req, res) => {
 
 
 
+router.post("/add-buddy", async (req, res) => {
+  const { currentUserId, buddyUsername } = req.body;
+
+  try {
+   
+    const { data: buddy, error: findError } = await supabase
+      .from("talkio")
+      .select("id")
+      .eq("username", buddyUsername)
+      .single();
+
+    if (findError || !buddy) {
+      return res.status(404).json({ message: "User not found!" });
+    }
+
+    if (buddy.id === currentUserId) {
+      return res.status(400).json({ message: "You cannot add yourself!" });
+    }
+
+    
+    const { error: insertError } = await supabase
+      .from("contacts")
+      .insert([{ user_id: currentUserId, buddy_id: buddy.id }]);
+
+    if (insertError) {
+      
+      if (insertError.code === "23505") {
+        return res.status(400).json({ message: "This buddy is already added!" });
+      }
+      throw insertError;
+    }
+
+    res.status(200).json({ message: "Buddy added successfully!" });
+  } catch (error) {
+    console.error("Error adding buddy:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+
+router.get("/buddies/:userId", async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+   
+    const { data, error } = await supabase
+      .from("contacts")
+      .select(`
+        buddy_id,
+        talkio!contacts_buddy_id_fkey (
+          id,
+          name,
+          username,
+          status,
+          email
+        )
+      `)
+      .eq("user_id", userId);
+
+    if (error) throw error;
+
+    
+    const buddies = data.map(item => item.talkio);
+    res.status(200).json(buddies);
+  } catch (error) {
+    console.error("Error fetching buddies:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+
+
 module.exports = router;
