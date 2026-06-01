@@ -125,7 +125,7 @@ router.post("/add-buddy", async (req, res) => {
     const { data: buddy, error: findError } = await db
       .from("talkio")
       .select("id")
-      .eq("username", buddyUsername)
+      .eq("username", buddyUsername.toLowerCase().trim())
       .single();
 
     if (findError || !buddy) {
@@ -136,25 +136,33 @@ router.post("/add-buddy", async (req, res) => {
       return res.status(400).json({ message: "You cannot add yourself!" });
     }
 
+  
+    const { data: existing, error: checkError } = await db
+      .from("contacts")
+      .select("*")
+      .or(`and(user_id.eq.${currentUserId},buddy_id.eq.${buddy.id}),and(user_id.eq.${buddy.id},buddy_id.eq.${currentUserId})`)
+      .maybeSingle();
+
+    if (existing) {
+      if (existing.status === 'pending') {
+        return res.status(400).json({ message: "A friend request is already pending between you two!" });
+      }
+      return res.status(400).json({ message: "You are already buddies!" });
+    }
+
     
     const { error: insertError } = await db
       .from("contacts")
-      .insert([{ user_id: currentUserId, buddy_id: buddy.id }]);
+      .insert([{ user_id: currentUserId, buddy_id: buddy.id, status: "pending" }]);
 
-    if (insertError) {
-      if (insertError.code === "23505") {
-        return res.status(400).json({ message: "This buddy is already added!" });
-      }
-      throw insertError;
-    }
+    if (insertError) throw insertError;
 
-    res.status(200).json({ message: "Buddy added successfully!" });
+    res.status(200).json({ message: "Friend request sent successfully!" });
   } catch (error) {
-    console.error("Error adding buddy:", error);
+    console.error("Error sending request:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 });
-
 
 
 router.get("/buddies/:userId", async (req, res) => {
@@ -165,23 +173,73 @@ router.get("/buddies/:userId", async (req, res) => {
     const { data, error } = await db
       .from("contacts")
       .select(`
+        user_id,
         buddy_id,
-        talkio!contacts_buddy_id_fkey (
-          id,
-          name,
-          username,
-          status,
-          email
-        )
+        sender:talkio!contacts_user_id_fkey(id, name, username, status),
+        receiver:talkio!contacts_buddy_id_fkey(id, name, username, status)
       `)
-      .eq("user_id", userId);
+      .eq("status", "accepted")
+      .or(`user_id.eq.${userId},buddy_id.eq.${userId}`);
 
     if (error) throw error;
 
-    const buddies = data.map(item => item.talkio);
+   
+    const buddies = data.map(item => {
+      return item.user_id === userId ? item.receiver : item.sender;
+    });
+
     res.status(200).json(buddies);
   } catch (error) {
     console.error("Error fetching buddies:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+
+router.get("/requests/pending/:userId", async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    
+    const { data, error } = await db
+      .from("contacts")
+      .select(`
+        id,
+        user_id,
+        sender:talkio!contacts_user_id_fkey(id, name, username)
+      `)
+      .eq("buddy_id", userId)
+      .eq("status", "pending");
+
+    if (error) throw error;
+
+    const pendingRequests = data.map(item => ({
+      requestId: item.id,
+      ...item.sender
+    }));
+
+    res.status(200).json(pendingRequests);
+  } catch (error) {
+    console.error("Error fetching pending requests:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+
+router.post("/requests/accept", async (req, res) => {
+  const { requestId } = req.body;
+
+  try {
+    const { error } = await db
+      .from("contacts")
+      .update({ status: "accepted" })
+      .eq("id", requestId);
+
+    if (error) throw error;
+
+    res.status(200).json({ message: "Friend request accepted!" });
+  } catch (error) {
+    console.error("Error accepting request:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 });
