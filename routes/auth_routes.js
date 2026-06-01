@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
-const db = require("../lib/db");
+const db = require("../lib/db"); 
+
 
 router.post("/signup", async (req, res) => {
     try {
@@ -14,9 +15,6 @@ router.post("/signup", async (req, res) => {
         if (authError) {
             return res.status(400).json({ error: authError.message });
         }
-
-
-     
 
         const { error: tableError } = await db.from("talkio")
             .insert({
@@ -41,6 +39,7 @@ router.post("/signup", async (req, res) => {
         });
     }
 });
+
 
 router.post("/login", async (req, res) => {
     try {
@@ -92,6 +91,7 @@ router.post("/login", async (req, res) => {
 
 
 
+
 router.get("/users/:currentUserId", async (req, res) => {
     try {
         const { currentUserId } = req.params;
@@ -100,7 +100,6 @@ router.get("/users/:currentUserId", async (req, res) => {
             return res.status(400).json({ error: "Current User ID is required." });
         }
 
-       
         const { data: users, error } = await db.from("talkio")
             .select("id, name, username, status")
             .neq("id", currentUserId); 
@@ -117,11 +116,12 @@ router.get("/users/:currentUserId", async (req, res) => {
 
 
 
+
 router.post("/add-buddy", async (req, res) => {
   const { currentUserId, buddyUsername } = req.body;
 
   try {
-   
+    
     const { data: buddy, error: findError } = await db
       .from("talkio")
       .select("id")
@@ -142,7 +142,6 @@ router.post("/add-buddy", async (req, res) => {
       .insert([{ user_id: currentUserId, buddy_id: buddy.id }]);
 
     if (insertError) {
-      
       if (insertError.code === "23505") {
         return res.status(400).json({ message: "This buddy is already added!" });
       }
@@ -157,12 +156,13 @@ router.post("/add-buddy", async (req, res) => {
 });
 
 
+
 router.get("/buddies/:userId", async (req, res) => {
   const { userId } = req.params;
 
   try {
-   
-    const { data, error } = await supabase
+    
+    const { data, error } = await db
       .from("contacts")
       .select(`
         buddy_id,
@@ -178,7 +178,6 @@ router.get("/buddies/:userId", async (req, res) => {
 
     if (error) throw error;
 
-    
     const buddies = data.map(item => item.talkio);
     res.status(200).json(buddies);
   } catch (error) {
@@ -186,7 +185,5 @@ router.get("/buddies/:userId", async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 });
-
-
 
 module.exports = router;
