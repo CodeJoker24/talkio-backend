@@ -11,6 +11,7 @@ require("dotenv").config();
 const app = express();
 const PORT = process.env.PORT || 4000;
 const authRoutes = require("./routes/auth_routes");
+const messageRoutes = require("./routes/message_routes");
 
 
 const server = http.createServer(app);
@@ -26,6 +27,7 @@ const io = new Server(server, {
 app.use(cors());
 app.use(express.json());
 app.use("/api/auth_routes", authRoutes);
+app.use("/api/messages", messageRoutes);
 
 app.get("/", (req, res) => {
     res.send("App is running with Socket.io!")
